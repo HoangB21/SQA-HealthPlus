@@ -1,32 +1,42 @@
 package Pharmacist;
 
+import com.hms.hms_test_2.DatabaseOperator;
 import com.hms.hms_test_2.User;
 import java.util.*;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 
 public class Pharmacist extends User {
-	private String pharmacistID;
+	String pharmacistID;
 
 	/**
 	 * Constructor to initialize the Pharmacist object with a specified username.
-	 * 
+	 *
 	 * @param username the username to initialize the Pharmacist object
 	 */
-	public Pharmacist(String username) {
-		super(username);
-
+	public Pharmacist(String username, DatabaseOperator dbOperator) {
+		super(username, dbOperator);
 		try {
 			pharmacistID = super.dbOperator
 					.showTableData("pharmacist", "pharmacist_id", ("user_id = '" + super.userID + "'")).get(0).get(0);
 		} catch (ClassNotFoundException | SQLException e) {
 		}
-
 	}
+
+	// Constructor cũ (giữ lại nếu cần tương thích)
+	public Pharmacist(String username) {
+		super(username);
+		try {
+			pharmacistID = super.dbOperator
+					.showTableData("pharmacist", "pharmacist_id", ("user_id = '" + super.userID + "'")).get(0).get(0);
+		} catch (ClassNotFoundException | SQLException e) {
+		}
+	}
+
 
 	/**
 	 * Retrieves the profile information of the pharmacist.
-	 * 
+	 *
 	 * @return a HashMap containing the profile information
 	 */
 	public HashMap<String, String> getProfileInfo() {
@@ -70,7 +80,7 @@ public class Pharmacist extends User {
 
 	/**
 	 * Retrieves the prescription information for a specified patient.
-	 * 
+	 *
 	 * @param patientID the ID of the patient for whom the prescription details are
 	 *                  required
 	 * @return a list of arrays containing prescription details for the patient
@@ -106,7 +116,7 @@ public class Pharmacist extends User {
 	/**
 	 * Retrieves the pharmacy history for patients, limited by the specified number
 	 * of rows.
-	 * 
+	 *
 	 * @param rows the number of rows to limit the pharmacy history
 	 * @return a list of arrays containing pharmacy history details for patients
 	 */
@@ -134,7 +144,7 @@ public class Pharmacist extends User {
 
 	/**
 	 * Retrieves the information about a drug based on its ID.
-	 * 
+	 *
 	 * @param drugID the ID of the drug to retrieve information for
 	 * @return a list of arrays containing information about the specified drug
 	 */
@@ -189,7 +199,7 @@ public class Pharmacist extends User {
 
 	/**
 	 * Adds a new drug to the system.
-	 * 
+	 *
 	 * @param drugInfo the information about the drug to be added
 	 * @return true if the drug was successfully added, false otherwise
 	 */
@@ -258,7 +268,7 @@ public class Pharmacist extends User {
 
 	/**
 	 * Adds new stock for a drug to the system.
-	 * 
+	 *
 	 * @param stockInfo the information about the stock to be added
 	 * @return true if the stock was successfully added, false otherwise
 	 */
@@ -326,7 +336,7 @@ public class Pharmacist extends User {
 
 	/**
 	 * Retrieves the stock details for a specified supplier.
-	 * 
+	 *
 	 * @param supplierID the ID of the supplier whose stock details are required
 	 * @return a list of arrays containing stock details for the specified supplier
 	 */
@@ -496,7 +506,7 @@ public class Pharmacist extends User {
 	}
 
 	/**
-	 * 
+	 *
 	 * @return HashMap<String,String> of supplier name and supplier id
 	 */
 	public HashMap<String, String> getSupplierNames() {
