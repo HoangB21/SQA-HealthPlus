@@ -556,7 +556,7 @@ public class DatabaseOperator {
 	/**
 	 * Performs a custom insertion operation on a table using the provided SQL
 	 * query.
-	 * 
+	 *
 	 * @param sql the SQL query for insertion
 	 * @return true if the insertion was successful, false otherwise
 	 */
