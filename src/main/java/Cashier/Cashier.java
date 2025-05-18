@@ -15,9 +15,9 @@ public class Cashier extends User {
      * 
      * @param username
      */
-    public Cashier(String username) {
-        super(username);
-    }
+        public Cashier(String username) {
+            super(username);
+        }
 
     /**
      * Retrieves profile information of the cashier.
