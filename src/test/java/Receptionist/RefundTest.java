@@ -22,6 +22,29 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
+/**
+ * Test class for refund method in Receptionist class.
+ * 
+ * Method Purpose:
+ * - Processes refund requests for bills
+ * - Creates refund records with unique identifiers
+ * - Tracks refund details including payment type, reason, and amount
+ * 
+ * Method Parameters:
+ * - refundInfo: String containing refund details in format:
+ *   "bill_id VALUE,payment_type VALUE,reason VALUE,amount VALUE"
+ * 
+ * Method Return Format:
+ * - Success: Returns true
+ * - Failure: Returns false
+ * 
+ * Business Rules:
+ * 1. Each refund must have a unique refund_id in format "rXXXX"
+ * 2. Refund amount must be a valid positive number
+ * 3. Payment type must be either "Cash" or "Card"
+ * 4. Refund date is automatically set to current timestamp
+ * 5. All fields (bill_id, payment_type, reason, amount) are required
+ */
 public class RefundTest {
 
     private Receptionist receptionistInstance;
@@ -43,7 +66,7 @@ public class RefundTest {
         receptionistInstance = new Receptionist("user018");
 
         // Establish connection to the MariaDB database
-        connection = DriverManager.getConnection("jdbc:mariadb://localhost:3368/test_HMS2", "root", "root");
+        connection = DatabaseOperator.c;
 
         // Start a transaction to allow rollback after the test
         connection.setAutoCommit(false);
@@ -60,19 +83,32 @@ public class RefundTest {
         closeable.close();
     }
 
-    /* RE_RF_01
-    Objective: Verify that the refund method correctly inserts a new refund record into the database
-               when provided with valid input, generates the next refund_id, and returns true.
-    Input: refundInfo = "bill_id B001,payment_type Cash,reason Lost,amount 100"
-           Pre-test database state: One record in the refund table with refund_id = "r0006".
-    Expected output: The method returns true.
-    Expected change in database: A new record is added to the refund table with:
-                                 - bill_id = "B001"
-                                 - payment_type = "Cash"
-                                 - reason = "Lost"
-                                 - amount = 100
-                                 - refund_id = "r0007"
-                                 - date = current timestamp (yyyy-MM-dd HH:mm:ss).
+    /*
+     * RE_RF_01
+     * Purpose: Verify successful creation of a new refund record with valid input data
+     * 
+     * Test Data Setup:
+     * - Refund Info: "bill_id B001,payment_type Cash,reason Lost,amount 100"
+     * - Existing refund record:
+     *   * refund_id: "r0006"
+     *   * bill_id: "hms0007b"
+     *   * payment_type: "Card"
+     *   * amount: 50
+     *   * date: "2025-01-01 00:00:00"
+     * 
+     * Expected Results:
+     * 1. Returns true indicating successful operation
+     * 2. Creates new refund record in database with:
+     *    - Generated refund_id: "r0007"
+     *    - Correct bill_id, payment_type, reason, and amount
+     *    - Current timestamp as refund date
+     * 3. Only one new record is added
+     * 
+     * Tests Business Rules:
+     * - Refund ID generation format (rXXXX)
+     * - Valid payment type handling (Cash)
+     * - Timestamp generation
+     * - Required field validation
      */
     @Test
     public void testRefund_SuccessfulInsertion() throws SQLException {
@@ -115,14 +151,25 @@ public class RefundTest {
         assertFalse(rs.next(), "Only one new record should be added");
     }
 
-    /* RE_RF_02
-    Objective: Verify that the refund method handles an SQLException during database operations
-               (e.g., when querying the maximum refund_id) and returns false without modifying the database.
-    Input: refundInfo = "bill_id B001,payment_type Cash,reason Lost,amount 100"
-           Pre-test database state: The refund table is empty.
-           Mock behavior: dbOperator.customSelection throws an SQLException.
-    Expected output: The method returns false.
-    Expected change in database: No records are inserted into the refund table.
+    /*
+     * RE_RF_02
+     * Purpose: Verify error handling when database operations fail
+     * 
+     * Test Data Setup:
+     * - Refund Info: "bill_id B001,payment_type Cash,reason Lost,amount 100"
+     * - Empty refund table (cleared before test)
+     * - Mock DatabaseOperator to throw SQLException for all operations
+     * 
+     * Expected Results:
+     * 1. Returns false to indicate failure
+     * 2. No refund record created in database
+     * 3. Database remains in original state
+     * 
+     * Tests Error Handling:
+     * - Database operation failures
+     * - Proper error state return value
+     * - Data integrity preservation
+     * - Transaction rollback functionality
      */
     @Test
     public void testRefund_ThrowsSQLException() throws SQLException, ClassNotFoundException {
@@ -138,7 +185,8 @@ public class RefundTest {
         String refundInfo = "bill_id B001,payment_type Cash,reason Lost,amount 100";
 
         // Mock the customSelection method to throw an SQLException
-        when(dbOperator.customSelection(anyString())).thenThrow(new SQLException("Database error: Unable to execute query"));
+        when(dbOperator.customSelection(anyString()))
+                .thenThrow(new SQLException("Database error: Unable to execute query"));
 
         // Call the method under test
         boolean result = receptionistInstance.refund(refundInfo);
@@ -153,15 +201,28 @@ public class RefundTest {
         assertFalse(rs.next(), "No records should be inserted into the refund table when an SQLException occurs");
     }
 
-    /* RE_RF_03
-    Objective: Verify that the refund method handles a case where the refund_id returned by the database
-               has a length of 1 or less (e.g., "r"), preventing the for loop from executing, leading to
-               an exception (e.g., NumberFormatException), and returns false without modifying the database.
-    Input: refundInfo = "bill_id B001,payment_type Cash,reason Lost,amount 100"
-           Pre-test database state: The refund table is empty.
-           Mock behavior: dbOperator.customSelection returns a refund_id of "r" (length 1).
-    Expected output: The method returns false due to an exception (e.g., NumberFormatException).
-    Expected change in database: No records are inserted into the refund table.
+    /*
+     * RE_RF_03
+     * Purpose: Verify handling of invalid refund ID format
+     * 
+     * Test Data Setup:
+     * - Refund Info: "bill_id B001,payment_type Cash,reason Lost,amount 100"
+     * - Empty refund table (cleared before test)
+     * - Mock DatabaseOperator to return invalid refund ID "r"
+     * - Mock data structure:
+     *   * Empty header row
+     *   * Data row with single value "r"
+     * 
+     * Expected Results:
+     * 1. Returns false to indicate failure
+     * 2. No refund record created in database
+     * 3. Database remains empty
+     * 
+     * Tests Business Rules:
+     * - Refund ID format validation (must be longer than 1 character)
+     * - No database changes on validation failure
+     * - Proper error handling for invalid ID format
+     * - Data integrity preservation
      */
     @Test
     public void testRefund_ShortRefundID() throws SQLException, ClassNotFoundException {
@@ -187,7 +248,8 @@ public class RefundTest {
         // Call the method under test
         boolean result = receptionistInstance.refund(refundInfo);
 
-        // Verify the method returns false due to an exception (e.g., StringIndexOutOfBoundsException)
+        // Verify the method returns false due to an exception (e.g.,
+        // StringIndexOutOfBoundsException)
         assertFalse(result, "The refund method should return false when refundID length is 1 or less");
 
         // Verify the database state (no records should be inserted)
