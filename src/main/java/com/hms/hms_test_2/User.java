@@ -38,6 +38,19 @@ public class User {
                         e.printStackTrace();
                 }
         }
+        public User(String username, DatabaseOperator dbOperator) {
+                this.dbOperator = dbOperator;
+                try {
+                        dbOperator.connectAndUseDatabase();
+                        this.username = username;
+                        ArrayList<ArrayList<String>> result = dbOperator.showTableData("sys_user", "user_id,user_type",
+                                ("user_name = '" + username + "'"));
+                        this.userID = result.get(0).get(0);
+                        this.userType = result.get(0).get(1);
+                } catch (SQLException | ClassNotFoundException e) {
+                        e.printStackTrace();
+                }
+        }
 
         public String checkUser(String username, String password) {
                 String access = "false";

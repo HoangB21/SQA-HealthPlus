@@ -43,7 +43,9 @@ public class RefundTest {
         receptionistInstance = new Receptionist("user018");
 
         // Establish connection to the MariaDB database
-        connection = DriverManager.getConnection("jdbc:mariadb://localhost:3368/test_HMS2", "root", "root");
+        connection = DriverManager.getConnection(
+                "jdbc:mysql://127.0.0.1:3306/test_HMS2?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC",
+                "root", "hieu");
 
         // Start a transaction to allow rollback after the test
         connection.setAutoCommit(false);
