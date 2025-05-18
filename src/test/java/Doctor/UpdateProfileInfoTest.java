@@ -103,19 +103,16 @@ public class UpdateProfileInfoTest {
      * @throws SQLException if a database access error occurs
      */
     @Test
-    public void testUpdateProfileInfoException() throws SQLException {
-        // Arrange: Gây lỗi SQLException bằng cách đổi tên bảng
-        Statement stmt = connection.createStatement();
-        stmt.execute("RENAME TABLE person TO person_temp");
+    public void testUpdateProfileInfoException() throws SQLException, ClassNotFoundException {
+        // Arrange: Gây lỗi SQLException bằng cách sử dụng mock
+        when(dbOperator.customInsertion(anyString())).thenThrow(new SQLException("Simulated database error"));
 
         // Act & Assert: Kiểm tra trường hợp SQLException
         boolean result = doctorInstance.updateProfileInfo("first_name John#last_name Doe");
         assertFalse(result, "Phương thức updateProfileInfo phải trả về false khi có lỗi cơ sở dữ liệu");
 
-        // Khôi phục bảng
-        stmt.execute("RENAME TABLE person_temp TO person");
-
         // Check database: Đảm bảo dữ liệu không thay đổi
+        Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery("SELECT first_name, last_name FROM person WHERE person_id = 'hms00081'");
         assertTrue(rs.next(), "Phải có bản ghi trong bảng person với person_id = 'hms00081'");
         assertEquals("Keerthi", rs.getString("first_name"), "Tên không được thay đổi");
@@ -132,7 +129,6 @@ public class UpdateProfileInfoTest {
             doctorInstance.updateProfileInfo("first_name#last_name Doe");
         }, "Phương thức updateProfileInfo phải ném ArrayIndexOutOfBoundsException khi định dạng đầu vào không hợp lệ");
     }
-
     /**
      * Test case: UPI_03
      * Mục tiêu: Kiểm tra xử lý lỗi SQLException bằng mock

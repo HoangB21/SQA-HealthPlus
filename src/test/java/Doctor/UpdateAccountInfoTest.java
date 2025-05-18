@@ -103,19 +103,16 @@ public class UpdateAccountInfoTest {
      * @throws SQLException if a database access error occurs
      */
     @Test
-    public void testUpdateAccountInfoException() throws SQLException {
-        // Arrange: Gây lỗi SQLException bằng cách đổi tên bảng
-        Statement stmt = connection.createStatement();
-        stmt.execute("RENAME TABLE sys_user TO sys_user_temp");
+    public void testUpdateAccountInfoException() throws SQLException, ClassNotFoundException {
+        // Arrange: Gây lỗi SQLException bằng cách sử dụng mock
+        when(dbOperator.customInsertion(anyString())).thenThrow(new SQLException("Simulated database error"));
 
         // Act & Assert: Kiểm tra trường hợp SQLException
         boolean result = doctorInstance.updateAccountInfo("username newDoc#password newPass");
         assertFalse(result, "Phương thức updateAccountInfo phải trả về false khi có lỗi cơ sở dữ liệu");
 
-        // Khôi phục bảng
-        stmt.execute("RENAME TABLE sys_user_temp TO sys_user");
-
         // Check database: Đảm bảo dữ liệu không thay đổi
+        Statement stmt = connection.createStatement();
         ResultSet rs = stmt.executeQuery("SELECT username, password FROM sys_user WHERE user_id = (SELECT user_id FROM doctor WHERE slmc_reg_no = '22387')");
         assertTrue(rs.next(), "Phải có bản ghi trong bảng sys_user với user_id tương ứng với slmc_reg_no = '22387'");
         assertEquals("oldDoc", rs.getString("username"), "Tên người dùng không được thay đổi");
@@ -132,7 +129,6 @@ public class UpdateAccountInfoTest {
             doctorInstance.updateAccountInfo("username#password newPass");
         }, "Phương thức updateAccountInfo phải ném ArrayIndexOutOfBoundsException khi định dạng đầu vào không hợp lệ");
     }
-
     /**
      * Test case: UAI_03
      * Mục tiêu: Kiểm tra xử lý lỗi SQLException bằng mock

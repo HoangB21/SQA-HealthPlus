@@ -118,16 +118,15 @@ public class RemoveDoctorTimeTest {
     /**
      * Test case: RDT_03
      * Mục tiêu: Kiểm tra xử lý lỗi SQLException khi xóa thời gian bác sĩ theo ngày và slot
-     * Input: day = "Monday", slot = "09:00-10:00", bảng doctor_availability không tồn tại
+     * Input: day = "Monday", slot = "09:00-10:00"
      * Expected Output: Trả về false
      * Ghi chú: Phủ nhánh lỗi SQLException khi truy vấn dữ liệu từ database
      * @throws SQLException if a database access error occurs
      */
     @Test
-    public void testRemoveDoctorTimeByDayAndSlotSQLException() throws SQLException {
-        // Arrange: Gây lỗi SQLException bằng cách đổi tên bảng
-        Statement stmt = connection.createStatement();
-        stmt.execute("RENAME TABLE doctor_availability TO doctor_availability_temp");
+    public void testRemoveDoctorTimeByDayAndSlotSQLException() throws SQLException, ClassNotFoundException {
+        // Arrange: Gây lỗi SQLException bằng cách sử dụng mock
+        doThrow(new SQLException("Simulated database error")).when(dbOperator).customDeletion(anyString());
 
         // Act: Gọi phương thức removeDoctorTime
         boolean result = doctorInstance.removeDoctorTime("Monday", "09:00-10:00");
@@ -135,8 +134,8 @@ public class RemoveDoctorTimeTest {
         // Assert: Kiểm tra kết quả
         assertFalse(result, "Phương thức removeDoctorTime(String day, String slot) phải trả về false khi có lỗi cơ sở dữ liệu");
 
-        // Khôi phục bảng
-        stmt.execute("RENAME TABLE doctor_availability_temp TO doctor_availability");
+        // Verify: Đảm bảo customDeletion được gọi đúng
+        verify(dbOperator, times(1)).customDeletion(anyString());
     }
 
     /**
@@ -190,16 +189,15 @@ public class RemoveDoctorTimeTest {
     /**
      * Test case: RDT_06
      * Mục tiêu: Kiểm tra xử lý lỗi SQLException khi xóa thời gian bác sĩ theo time_slot_id
-     * Input: id = "t0001", bảng doctor_availability không tồn tại
+     * Input: id = "t0001"
      * Expected Output: Trả về false
      * Ghi chú: Phủ nhánh lỗi SQLException khi truy vấn dữ liệu từ database
      * @throws SQLException if a database access error occurs
      */
     @Test
-    public void testRemoveDoctorTimeByIdSQLException() throws SQLException {
-        // Arrange: Gây lỗi SQLException bằng cách đổi tên bảng
-        Statement stmt = connection.createStatement();
-        stmt.execute("RENAME TABLE doctor_availability TO doctor_availability_temp");
+    public void testRemoveDoctorTimeByIdSQLException() throws SQLException, ClassNotFoundException {
+        // Arrange: Gây lỗi SQLException bằng cách sử dụng mock
+        doThrow(new SQLException("Simulated database error")).when(dbOperator).customDeletion(anyString());
 
         // Act: Gọi phương thức removeDoctorTime
         boolean result = doctorInstance.removeDoctorTime("t0001");
@@ -207,8 +205,8 @@ public class RemoveDoctorTimeTest {
         // Assert: Kiểm tra kết quả
         assertFalse(result, "Phương thức removeDoctorTime(String id) phải trả về false khi có lỗi cơ sở dữ liệu");
 
-        // Khôi phục bảng
-        stmt.execute("RENAME TABLE doctor_availability_temp TO doctor_availability");
+        // Verify: Đảm bảo customDeletion được gọi đúng
+        verify(dbOperator, times(1)).customDeletion(anyString());
     }
 
     /**

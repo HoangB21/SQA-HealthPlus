@@ -42,11 +42,7 @@ public class DoctorTimeTableAddSlotTest {
         MockitoAnnotations.openMocks(this);
 
         // Establish a connection to the MySQL database
-        connection = DriverManager.getConnection(
-                "jdbc:mysql://127.0.0.1:3306/test_HMS2?useSSL=false&allowPublicKeyRetrieval=true",
-                "root",
-                "Huycode12003."
-        );
+        connection = DatabaseOperator.c;
         connection.setAutoCommit(false); // Disable auto-commit to control transactions
 
         // Initialize Doctor instance
