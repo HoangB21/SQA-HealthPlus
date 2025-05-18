@@ -69,9 +69,6 @@ public class RefundTest {
 
         // Start a transaction to allow rollback after the test
         connection.setAutoCommit(false);
-
-        // Start a transaction to allow rollback after the test
-        connection.setAutoCommit(false);
     }
 
     @AfterEach
