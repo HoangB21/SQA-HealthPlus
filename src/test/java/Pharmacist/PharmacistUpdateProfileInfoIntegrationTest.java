@@ -118,7 +118,7 @@ public class PharmacistUpdateProfileInfoIntegrationTest {
      */
     @Test
     public void testUpdateProfileInfo_ThrowsSQLException() throws SQLException {
-        String info = "invalid_column Value";
+        String info = "invalid_column@@# Value";
         boolean result = pharmacistInstance.updateProfileInfo(info);
 
         assertFalse(result, "The method should return false when an SQLException occurs");
