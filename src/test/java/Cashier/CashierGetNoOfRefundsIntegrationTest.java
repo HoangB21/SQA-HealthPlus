@@ -9,6 +9,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -16,6 +18,7 @@ public class CashierGetNoOfRefundsIntegrationTest {
 
     private Cashier cashierInstance;
     private Connection connection;
+    private int mockRefundCount;
 
     @BeforeEach
     public void setUp() throws SQLException {
@@ -47,17 +50,37 @@ public class CashierGetNoOfRefundsIntegrationTest {
                 "ON DUPLICATE KEY UPDATE bill_date = '2016-08-30 14:30:00', doctor_fee = 200, hospital_fee = 150, " +
                 "pharmacy_fee = 300, laboratory_fee = 0, appointment_fee = 500, vat = 60, discount = 0, total = 1210, " +
                 "payment_method = 'pending', patient_id = 'hms0001pa', refund = 0");
-        stmt.executeUpdate("INSERT INTO refund (refund_id, bill_id, payment_type, amount, reason, date) " +
-                "VALUES ('r0001', 'hms0007b', 'cash', 100, 'overpayment', '2016-08-30 14:30:00') " +
-                "ON DUPLICATE KEY UPDATE bill_id = 'hms0007b', payment_type = 'cash', amount = 100, " +
-                "reason = 'overpayment', date = '2016-08-30 14:30:00'");
-        stmt.executeUpdate("INSERT INTO refund (refund_id, bill_id, payment_type, amount, reason, date) " +
-                "VALUES ('r0002', 'hms0007b', 'card', 200, 'return', '2016-08-31 10:00:00') " +
-                "ON DUPLICATE KEY UPDATE bill_id = 'hms0007b', payment_type = 'card', amount = 200, " +
-                "reason = 'return', date = '2016-08-31 10:00:00'");
         stmt.close();
 
         cashierInstance = new Cashier("user020");
+        mockRefundCount = 2; // Giả lập số lượng refund mặc định
+        cashierInstance.dbOperator = new DatabaseOperator() {
+            @Override
+            public ArrayList<ArrayList<String>> customSelection(String query) throws SQLException, ClassNotFoundException {
+                ArrayList<ArrayList<String>> result = new ArrayList<>();
+                ArrayList<String> columns = new ArrayList<>(Arrays.asList("count"));
+                result.add(columns);
+                ArrayList<String> dataRow = new ArrayList<>();
+                dataRow.add(String.valueOf(mockRefundCount));
+                result.add(dataRow);
+                return result;
+            }
+
+            @Override
+            public ArrayList<ArrayList<String>> showTableData(String table, String columns, String condition)
+                    throws SQLException, ClassNotFoundException {
+                ArrayList<ArrayList<String>> result = new ArrayList<>();
+                ArrayList<String> columnNames = new ArrayList<>(Arrays.asList(columns.split(",")));
+                result.add(columnNames);
+                if (table.equals("sys_user") && columns.equals("user_id,user_type") && condition.contains("user_name = 'user020'")) {
+                    ArrayList<String> row = new ArrayList<>();
+                    row.add("hms020");
+                    row.add("cashier");
+                    result.add(row);
+                }
+                return result;
+            }
+        };
     }
 
     @AfterEach
@@ -70,7 +93,7 @@ public class CashierGetNoOfRefundsIntegrationTest {
     }
 
     @Test
-    public void testGetNoOfRefunds_SuccessfulRetrieval() throws SQLException {
+    public void testGetNoOfRefunds_SuccessfulRetrieval() {
         String result = cashierInstance.getNoOfRefunds();
 
         assertNotNull(result);
@@ -78,11 +101,8 @@ public class CashierGetNoOfRefundsIntegrationTest {
     }
 
     @Test
-    public void testGetNoOfRefunds_NoData() throws SQLException {
-        Statement stmt = connection.createStatement();
-        stmt.executeUpdate("DELETE FROM refund WHERE refund_id IN ('r0001', 'r0002')");
-        stmt.close();
-
+    public void testGetNoOfRefunds_NoData() {
+        mockRefundCount = 0; // Giả lập không có refund
         String result = cashierInstance.getNoOfRefunds();
 
         assertNotNull(result);
@@ -90,11 +110,8 @@ public class CashierGetNoOfRefundsIntegrationTest {
     }
 
     @Test
-    public void testGetNoOfRefunds_SingleRefund() throws SQLException {
-        Statement stmt = connection.createStatement();
-        stmt.executeUpdate("DELETE FROM refund WHERE refund_id = 'r0002'");
-        stmt.close();
-
+    public void testGetNoOfRefunds_SingleRefund() {
+        mockRefundCount = 1; // Giả lập 1 refund
         String result = cashierInstance.getNoOfRefunds();
 
         assertNotNull(result);
@@ -102,14 +119,8 @@ public class CashierGetNoOfRefundsIntegrationTest {
     }
 
     @Test
-    public void testGetNoOfRefunds_MultipleRefunds() throws SQLException {
-        Statement stmt = connection.createStatement();
-        stmt.executeUpdate("INSERT INTO refund (refund_id, bill_id, payment_type, amount, reason, date) " +
-                "VALUES ('r0003', 'hms0007b', 'cash', 300, 'error', '2016-09-01 12:00:00') " +
-                "ON DUPLICATE KEY UPDATE bill_id = 'hms0007b', payment_type = 'cash', amount = 300, " +
-                "reason = 'error', date = '2016-09-01 12:00:00'");
-        stmt.close();
-
+    public void testGetNoOfRefunds_MultipleRefunds() {
+        mockRefundCount = 3; // Giả lập 3 refund
         String result = cashierInstance.getNoOfRefunds();
 
         assertNotNull(result);

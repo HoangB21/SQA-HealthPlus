@@ -61,19 +61,27 @@ public class CashierGetCancelledDocAppointmentsIntegrationTest {
         stmt.executeUpdate("INSERT INTO doctor (slmc_reg_no, user_id) " +
                 "VALUES ('22387', 'hms00081') " +
                 "ON DUPLICATE KEY UPDATE user_id = 'hms00081'");
+        // Insert bill
+        stmt.executeUpdate("INSERT INTO bill (bill_id, bill_date, total, patient_id) " +
+                "VALUES ('hms0001b', '2016-08-30 14:30:00', 1210, 'hms0001pa') " +
+                "ON DUPLICATE KEY UPDATE bill_date = '2016-08-30 14:30:00', total = 1210, patient_id = 'hms0001pa'");
         // Insert appointments
-        stmt.executeUpdate("INSERT INTO appointment (appointment_id, date, cancelled, patient_id, consultant_id) " +
-                "VALUES ('app001', '2024-11-01 10:00:00', 1, 'hms0001pa', '22387') " +
-                "ON DUPLICATE KEY UPDATE date = '2024-11-01 10:00:00', cancelled = 1, patient_id = 'hms0001pa', consultant_id = '22387'");
-        stmt.executeUpdate("INSERT INTO appointment (appointment_id, date, cancelled, patient_id, consultant_id) " +
-                "VALUES ('app002', '2025-01-15 14:00:00', 1, 'hms0001pa', '22387') " +
-                "ON DUPLICATE KEY UPDATE date = '2025-01-15 14:00:00', cancelled = 1, patient_id = 'hms0001pa', consultant_id = '22387'");
-        stmt.executeUpdate("INSERT INTO appointment (appointment_id, date, cancelled, patient_id, consultant_id) " +
-                "VALUES ('app003', '2023-10-01 09:00:00', 1, 'hms0001pa', '22387') " +
-                "ON DUPLICATE KEY UPDATE date = '2023-10-01 09:00:00', cancelled = 1, patient_id = 'hms0001pa', consultant_id = '22387'");
-        stmt.executeUpdate("INSERT INTO appointment (appointment_id, date, cancelled, patient_id, consultant_id) " +
-                "VALUES ('app004', '2024-12-01 11:00:00', 0, 'hms0001pa', '22387') " +
-                "ON DUPLICATE KEY UPDATE date = '2024-12-01 11:00:00', cancelled = 0, patient_id = 'hms0001pa', consultant_id = '22387'");
+        stmt.executeUpdate("INSERT INTO appointment (appointment_id, date, info, patient_id, bill_id, slmc_reg_no, cancelled) " +
+                "VALUES ('app001', '2024-11-01 10:00:00', 'Consultation', 'hms0001pa', 'hms0001b', '22387', 1) " +
+                "ON DUPLICATE KEY UPDATE date = '2024-11-01 10:00:00', info = 'Consultation', patient_id = 'hms0001pa', " +
+                "bill_id = 'hms0001b', slmc_reg_no = '22387', cancelled = 1");
+        stmt.executeUpdate("INSERT INTO appointment (appointment_id, date, info, patient_id, bill_id, slmc_reg_no, cancelled) " +
+                "VALUES ('app002', '2025-01-15 14:00:00', 'Follow-up', 'hms0001pa', 'hms0001b', '22387', 1) " +
+                "ON DUPLICATE KEY UPDATE date = '2025-01-15 14:00:00', info = 'Follow-up', patient_id = 'hms0001pa', " +
+                "bill_id = 'hms0001b', slmc_reg_no = '22387', cancelled = 1");
+        stmt.executeUpdate("INSERT INTO appointment (appointment_id, date, info, patient_id, bill_id, slmc_reg_no, cancelled) " +
+                "VALUES ('app003', '2023-10-01 09:00:00', 'Check-up', 'hms0001pa', 'hms0001b', '22387', 1) " +
+                "ON DUPLICATE KEY UPDATE date = '2023-10-01 09:00:00', info = 'Check-up', patient_id = 'hms0001pa', " +
+                "bill_id = 'hms0001b', slmc_reg_no = '22387', cancelled = 1");
+        stmt.executeUpdate("INSERT INTO appointment (appointment_id, date, info, patient_id, bill_id, slmc_reg_no, cancelled) " +
+                "VALUES ('app004', '2024-12-01 11:00:00', 'Consultation', 'hms0001pa', 'hms0001b', '22387', 0) " +
+                "ON DUPLICATE KEY UPDATE date = '2024-12-01 11:00:00', info = 'Consultation', patient_id = 'hms0001pa', " +
+                "bill_id = 'hms0001b', slmc_reg_no = '22387', cancelled = 0");
         stmt.close();
 
         cashierInstance = new Cashier("user020");
@@ -143,7 +151,7 @@ public class CashierGetCancelledDocAppointmentsIntegrationTest {
 
     @Test
     public void testGetCancelledDocAppointments_NoCancelledAppointments() throws SQLException {
-        // Delete cancelled appointments within 12 months
+        // Delete cancelled appointments within  AscendingOrderBy
         Statement stmt = connection.createStatement();
         stmt.executeUpdate("DELETE FROM appointment WHERE cancelled = 1 AND date > (CURRENT_DATE - INTERVAL 12 MONTH)");
         stmt.close();

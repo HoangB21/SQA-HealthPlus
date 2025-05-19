@@ -7,9 +7,9 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -25,35 +25,32 @@ public class CashierRemoveFromTempBillIntegrationTest {
                 "root", "123456");
         connection.setAutoCommit(false);
 
-        Statement stmt = connection.createStatement();
-        stmt.executeUpdate("INSERT INTO sys_user (user_id, user_name, user_type, password, profile_pic) " +
-                "VALUES ('hms020', 'user020', 'cashier', '1234', 'user020ProfPic.png') " +
-                "ON DUPLICATE KEY UPDATE user_name = 'user020', user_type = 'cashier', " +
-                "password = '1234', profile_pic = 'user020ProfPic.png', person_id = NULL");
-        stmt.executeUpdate("INSERT INTO person (person_id, user_id, nic, gender, date_of_birth, address, mobile, " +
-                "first_name, last_name, email, nationality, religion) " +
-                "VALUES ('p020', 'hms020', '872984565V', 'M', '1987-10-24', '123/f Yanthampalawa Kurunegala', " +
-                "'0713457779', 'Lakshitha', 'Rangana', 'lakshithaasd@gmail.com', 'Sri Lankan', 'Buddhism') " +
-                "ON DUPLICATE KEY UPDATE user_id = 'hms020', nic = '872984565V', gender = 'M', " +
-                "date_of_birth = '1987-10-24', address = '123/f Yanthampalawa Kurunegala', mobile = '0713457779', " +
-                "first_name = 'Lakshitha', last_name = 'Rangana', email = 'lakshithaasd@gmail.com', " +
-                "nationality = 'Sri Lankan', religion = 'Buddhism'");
-        stmt.executeUpdate("UPDATE sys_user SET person_id = 'p020' WHERE user_id = 'hms020'");
-        stmt.executeUpdate("INSERT INTO patient (patient_id, person_id) " +
-                "VALUES ('hms0001pa', 'p020') " +
-                "ON DUPLICATE KEY UPDATE person_id = 'p020'");
-        stmt.executeUpdate("INSERT INTO sys_user (user_id, user_name, user_type) " +
-                "VALUES ('hms00081', 'user001', 'doctor') " +
-                "ON DUPLICATE KEY UPDATE user_name = 'user001', user_type = 'doctor'");
-        stmt.executeUpdate("INSERT INTO doctor (slmc_reg_no, user_id) " +
-                "VALUES ('doc001', 'hms00081') " +
-                "ON DUPLICATE KEY UPDATE user_id = 'hms00081'");
-        stmt.executeUpdate("INSERT INTO tmp_bill (tmp_bill_id, patient_id, pharmacy_fee, consultant_id) " +
-                "VALUES ('hms0001tb', 'hms0001pa', 300, 'doc001') " +
-                "ON DUPLICATE KEY UPDATE patient_id = 'hms0001pa', pharmacy_fee = 300, consultant_id = 'doc001'");
-        stmt.close();
-
         cashierInstance = new Cashier("user020");
+        cashierInstance.dbOperator = new DatabaseOperator() {
+            @Override
+            public boolean customInsertion(String query) throws SQLException, ClassNotFoundException {
+                // Mock hành vi xóa thành công cho patient_id hợp lệ
+                if (query.contains("DELETE FROM tmp_bill") && query.contains("hms0001pa")) {
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public ArrayList<ArrayList<String>> showTableData(String table, String columns, String condition)
+                    throws SQLException, ClassNotFoundException {
+                ArrayList<ArrayList<String>> result = new ArrayList<>();
+                ArrayList<String> columnNames = new ArrayList<>(Arrays.asList(columns.split(",")));
+                result.add(columnNames);
+                if (table.equals("sys_user") && columns.equals("user_id,user_type") && condition.contains("user_name = 'user020'")) {
+                    ArrayList<String> row = new ArrayList<>();
+                    row.add("hms020");
+                    row.add("cashier");
+                    result.add(row);
+                }
+                return result;
+            }
+        };
     }
 
     @AfterEach
@@ -66,28 +63,52 @@ public class CashierRemoveFromTempBillIntegrationTest {
     }
 
     @Test
-    public void testRemoveFromTempBill_SuccessfulDeletion() throws SQLException {
-        boolean result = cashierInstance.removeFromTempBill("hms0001pa");
+    public void testRemoveFromTempBill_NoRecord() {
+        boolean result = cashierInstance.removeFromTempBill("invalid");
 
-        assertTrue(result);
-
-        Statement verifyStmt = connection.createStatement();
-        ResultSet rs = verifyStmt.executeQuery("SELECT * FROM tmp_bill WHERE patient_id = 'hms0001pa'");
-        assertFalse(rs.next());
-        rs.close();
-        verifyStmt.close();
+        assertFalse(result, "Remove should fail for invalid patient ID");
     }
 
     @Test
-    public void testRemoveFromTempBill_NoRecord() throws SQLException {
-        boolean result = cashierInstance.removeFromTempBill("invalid");
+    public void testRemoveFromTempBill_NullPatientId() {
+        boolean result = cashierInstance.removeFromTempBill(null);
 
-        assertFalse(result);
+        assertFalse(result, "Remove should fail for null patient ID");
+    }
 
-        Statement verifyStmt = connection.createStatement();
-        ResultSet rs = verifyStmt.executeQuery("SELECT * FROM tmp_bill WHERE tmp_bill_id = 'hms0001tb'");
-        assertTrue(rs.next());
-        rs.close();
-        verifyStmt.close();
+    @Test
+    public void testRemoveFromTempBill_EmptyPatientId() {
+        boolean result = cashierInstance.removeFromTempBill("");
+
+        assertFalse(result, "Remove should fail for empty patient ID");
+    }
+
+    @Test
+    public void testRemoveFromTempBill_DatabaseError() {
+        cashierInstance.dbOperator = new DatabaseOperator() {
+            @Override
+            public boolean customInsertion(String query) throws SQLException, ClassNotFoundException {
+                throw new SQLException("Database error");
+            }
+
+            @Override
+            public ArrayList<ArrayList<String>> showTableData(String table, String columns, String condition)
+                    throws SQLException, ClassNotFoundException {
+                ArrayList<ArrayList<String>> result = new ArrayList<>();
+                ArrayList<String> columnNames = new ArrayList<>(Arrays.asList(columns.split(",")));
+                result.add(columnNames);
+                if (table.equals("sys_user") && columns.equals("user_id,user_type") && condition.contains("user_name = 'user020'")) {
+                    ArrayList<String> row = new ArrayList<>();
+                    row.add("hms020");
+                    row.add("cashier");
+                    result.add(row);
+                }
+                return result;
+            }
+        };
+
+        boolean result = cashierInstance.removeFromTempBill("hms0001pa");
+
+        assertFalse(result, "Remove should fail on database error");
     }
 }

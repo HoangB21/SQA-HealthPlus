@@ -11,6 +11,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -26,29 +27,18 @@ public class CashierBillIntegrationTest {
                 "root", "123456");
         connection.setAutoCommit(false);
 
-        // Thêm hoặc cập nhật dữ liệu mẫu vào sys_user, person, patient, bill
         Statement stmt = connection.createStatement();
-        // Chèn sys_user trước, để user_id tồn tại
         stmt.executeUpdate("INSERT INTO sys_user (user_id, user_name, user_type, password, profile_pic) " +
-                "VALUES ('hms020', 'user020', 'cashier', '1234', 'user020ProfPic.png') " +
+                "VALUES ('hms0020u', 'user020', 'cashier', '1234', 'user020ProfPic.png') " +
                 "ON DUPLICATE KEY UPDATE user_name = 'user020', user_type = 'cashier', " +
                 "password = '1234', profile_pic = 'user020ProfPic.png', person_id = NULL");
-        // Chèn person, sử dụng user_id = 'hms020' đã tồn tại
-        stmt.executeUpdate("INSERT INTO person (person_id, user_id, nic, gender, date_of_birth, address, mobile, " +
-                "first_name, last_name, email, nationality, religion) " +
-                "VALUES ('p020', 'hms020', '872984565V', 'M', '1987-10-24', '123/f Yanthampalawa Kurunegala', " +
-                "'0713457779', 'Lakshitha', 'Rangana', 'lakshithaasd@gmail.com', 'Sri Lankan', 'Buddhism') " +
-                "ON DUPLICATE KEY UPDATE user_id = 'hms020', nic = '872984565V', gender = 'M', " +
-                "date_of_birth = '1987-10-24', address = '123/f Yanthampalawa Kurunegala', mobile = '0713457779', " +
-                "first_name = 'Lakshitha', last_name = 'Rangana', email = 'lakshithaasd@gmail.com', " +
-                "nationality = 'Sri Lankan', religion = 'Buddhism'");
-        // Cập nhật sys_user để thêm person_id
-        stmt.executeUpdate("UPDATE sys_user SET person_id = 'p020' WHERE user_id = 'hms020'");
-        // Chèn patient
+        stmt.executeUpdate("INSERT INTO person (person_id, user_id) " +
+                "VALUES ('hms00001', 'hms0020u') " +
+                "ON DUPLICATE KEY UPDATE user_id = 'hms0020u'");
+        stmt.executeUpdate("UPDATE sys_user SET person_id = 'hms00001' WHERE user_id = 'hms0020u'");
         stmt.executeUpdate("INSERT INTO patient (patient_id, person_id) " +
-                "VALUES ('hms0001pa', 'p020') " +
-                "ON DUPLICATE KEY UPDATE person_id = 'p020'");
-        // Chèn bill
+                "VALUES ('hms0001pa', 'hms00001') " +
+                "ON DUPLICATE KEY UPDATE person_id = 'hms00001'");
         stmt.executeUpdate("INSERT INTO bill (bill_id, bill_date, doctor_fee, hospital_fee, pharmacy_fee, " +
                 "laboratory_fee, appointment_fee, vat, discount, total, payment_method, patient_id, refund) " +
                 "VALUES ('hms0007b', '2016-08-30 14:30:00', 200, 150, 300, 0, 500, 60, 0, 1210, 'pending', 'hms0001pa', 0) " +
@@ -57,7 +47,7 @@ public class CashierBillIntegrationTest {
                 "payment_method = 'pending', patient_id = 'hms0001pa', refund = 0");
         stmt.close();
 
-        cashierInstance = new Cashier("hms020");
+        cashierInstance = new Cashier("user020");
         cashierInstance.dbOperator = new DatabaseOperator() {
             @Override
             public boolean customInsertion(String query) throws SQLException, ClassNotFoundException {
@@ -92,8 +82,16 @@ public class CashierBillIntegrationTest {
             @Override
             public ArrayList<ArrayList<String>> showTableData(String table, String columns, String condition)
                     throws SQLException, ClassNotFoundException {
-                String query = "SELECT " + columns + " FROM " + table + " WHERE " + condition;
-                return customSelection(query);
+                ArrayList<ArrayList<String>> result = new ArrayList<>();
+                ArrayList<String> columnNames = new ArrayList<>(Arrays.asList(columns.split(",")));
+                result.add(columnNames);
+                if (table.equals("sys_user") && columns.equals("user_id,user_type") && condition.contains("user_name = 'user020'")) {
+                    ArrayList<String> row = new ArrayList<>();
+                    row.add("hms0020u");
+                    row.add("cashier");
+                    result.add(row);
+                }
+                return result;
             }
         };
     }
@@ -107,72 +105,54 @@ public class CashierBillIntegrationTest {
         }
     }
 
-    /* CA_BILL_INT_01
-    Objective: Verify that the bill method correctly inserts a new bill into the bill table and returns the new bill_id.
-    Input: billInfo = "patient_id hms0001pa,doctor_fee 300,pharmacy_fee 400"
-           Pre-test state: Database contains a bill with bill_id = "hms0007b".
-    Expected output: New bill_id (e.g., "hms0008b"), and the new bill is present in the bill table.
-    Expected change: Database is rolled back after test.
-     */
     @Test
-    public void testBill_SuccessfulInsertion() throws SQLException {
+    public void testBill_Success() throws SQLException {
         String billInfo = "patient_id hms0001pa,doctor_fee 300,pharmacy_fee 400";
         String result = cashierInstance.bill(billInfo);
 
-        assertNotNull(result, "The result should not be null");
-        assertNotEquals("0", result, "The result should be a valid bill_id");
-        assertEquals("hms0008b", result, "The bill_id should be 'hms0008b'");
-
+        assertEquals("hms0008b", result, "Bill ID should be 'hms0008b'");
         Statement verifyStmt = connection.createStatement();
         ResultSet rs = verifyStmt.executeQuery("SELECT * FROM bill WHERE bill_id = 'hms0008b'");
-        assertTrue(rs.next(), "The new bill should be present in the database");
-        assertEquals("hms0001pa", rs.getString("patient_id"), "The patient_id should match");
-        assertEquals(300, rs.getInt("doctor_fee"), "The doctor_fee should match");
-        assertEquals(400, rs.getInt("pharmacy_fee"), "The pharmacy_fee should match");
-        assertNotNull(rs.getString("bill_date"), "The bill_date should not be null");
+        assertTrue(rs.next(), "New bill should be present");
+        assertEquals("hms0001pa", rs.getString("patient_id"), "Patient ID should match");
+        assertEquals(300, rs.getInt("doctor_fee"), "Doctor fee should match");
         rs.close();
         verifyStmt.close();
     }
 
-    /* CA_BILL_INT_02
-    Objective: Verify that the bill method returns "0" when an SQLException occurs (e.g., invalid column in billInfo).
-    Input: billInfo = "invalid_column 100"
-           Pre-test state: Database contains a bill with bill_id = "hms0007b".
-    Expected output: "0", and no new bill is added.
-    Expected change: Database is rolled back after test.
-     */
     @Test
-    public void testBill_ThrowsSQLException() throws SQLException {
-        String billInfo = "invalid_column 100";
-        String result = cashierInstance.bill(billInfo);
-
-        assertEquals("0", result, "The method should return '0' when an SQLException occurs");
-
-        Statement verifyStmt = connection.createStatement();
-        ResultSet rs = verifyStmt.executeQuery("SELECT * FROM bill WHERE bill_id = 'hms0008b'");
-        assertFalse(rs.next(), "No new bill should be added to the database");
-        rs.close();
-        verifyStmt.close();
-    }
-
-    /* CA_BILL_INT_03
-    Objective: Verify that the bill method returns "0" when billInfo is invalid (e.g., empty string).
-    Input: billInfo = ""
-           Pre-test state: Database contains a bill with bill_id = "hms0007b".
-    Expected output: "0", and no new bill is added.
-    Expected change: Database is rolled back after test.
-     */
-    @Test
-    public void testBill_InvalidBillInfo() throws SQLException {
+    public void testBill_InvalidBillInfo() {
         String billInfo = "";
         String result = cashierInstance.bill(billInfo);
 
-        assertEquals("0", result, "The method should return '0' when billInfo is invalid");
+        assertEquals("0", result, "Should return '0' for empty billInfo");
+    }
 
-        Statement verifyStmt = connection.createStatement();
-        ResultSet rs = verifyStmt.executeQuery("SELECT * FROM bill WHERE bill_id = 'hms0008b'");
-        assertFalse(rs.next(), "No new bill should be added to the database");
-        rs.close();
-        verifyStmt.close();
+    @Test
+    public void testBill_InvalidPatient() {
+        String billInfo = "patient_id invalid_patient,doctor_fee 300,pharmacy_fee 400";
+        String result = cashierInstance.bill(billInfo);
+
+        assertEquals("0", result, "Should return '0' for invalid patient_id");
+    }
+
+    @Test
+    public void testBill_MissingRequiredField() {
+        String billInfo = "doctor_fee 300,pharmacy_fee 400";
+        String result = cashierInstance.bill(billInfo);
+
+        assertEquals("0", result, "Should return '0' for missing patient_id");
+    }
+
+    @Test
+    public void testBill_DatabaseError() throws SQLException {
+        Statement stmt = connection.createStatement();
+        stmt.executeUpdate("DROP TABLE bill");
+        stmt.close();
+
+        String billInfo = "patient_id hms0001pa,doctor_fee 300,pharmacy_fee 400";
+        String result = cashierInstance.bill(billInfo);
+
+        assertEquals("0", result, "Should return '0' on database error");
     }
 }

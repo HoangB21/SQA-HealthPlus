@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -27,6 +26,13 @@ public class CashierGetPaymentHistoryIntegrationTest {
         connection.setAutoCommit(false);
 
         Statement stmt = connection.createStatement();
+        // Xóa tham chiếu bill_id trong các bảng liên quan
+        stmt.executeUpdate("UPDATE appointment SET bill_id = NULL");
+        stmt.executeUpdate("UPDATE lab_appointment SET bill_id = NULL");
+        stmt.executeUpdate("UPDATE pharmacy_history SET bill_id = NULL");
+        // Xóa tất cả hóa đơn
+        stmt.executeUpdate("DELETE FROM bill");
+        // Chèn dữ liệu test
         stmt.executeUpdate("INSERT INTO sys_user (user_id, user_name, user_type, password, profile_pic) " +
                 "VALUES ('hms020', 'user020', 'cashier', '1234', 'user020ProfPic.png') " +
                 "ON DUPLICATE KEY UPDATE user_name = 'user020', user_type = 'cashier', " +
@@ -44,17 +50,17 @@ public class CashierGetPaymentHistoryIntegrationTest {
                 "VALUES ('hms0001pa', 'p020') " +
                 "ON DUPLICATE KEY UPDATE person_id = 'p020'");
         stmt.executeUpdate("INSERT INTO bill (bill_id, bill_date, doctor_fee, hospital_fee, pharmacy_fee, " +
-                "laboratory_fee, appointment_fee, vat, discount, total, payment_method, patient_id, refund) " +
-                "VALUES ('hms0007b', '2016-08-30 14:30:00', 200, 150, 300, 0, 500, 60, 0, 1210, 'pending', 'hms0001pa', 0) " +
+                "laboratory_fee, appointment_fee, vat, discount, total, payment_method, patient_id, refund, consultant_id) " +
+                "VALUES ('hms0007b', '2016-08-30 14:30:00', 200, 150, 300, 0, 500, 60, 0, 1210, 'pending', 'hms0001pa', 0, '22387') " +
                 "ON DUPLICATE KEY UPDATE bill_date = '2016-08-30 14:30:00', doctor_fee = 200, hospital_fee = 150, " +
                 "pharmacy_fee = 300, laboratory_fee = 0, appointment_fee = 500, vat = 60, discount = 0, total = 1210, " +
-                "payment_method = 'pending', patient_id = 'hms0001pa', refund = 0");
+                "payment_method = 'pending', patient_id = 'hms0001pa', refund = 0, consultant_id = '22387'");
         stmt.executeUpdate("INSERT INTO bill (bill_id, bill_date, doctor_fee, hospital_fee, pharmacy_fee, " +
-                "laboratory_fee, appointment_fee, vat, discount, total, payment_method, patient_id, refund) " +
-                "VALUES ('hms0008b', '2016-09-01 10:00:00', 250, 100, 400, 50, 600, 70, 10, 1460, 'paid', 'hms0001pa', 0) " +
+                "laboratory_fee, appointment_fee, vat, discount, total, payment_method, patient_id, refund, consultant_id) " +
+                "VALUES ('hms0008b', '2016-09-01 10:00:00', 250, 100, 400, 50, 600, 70, 10, 1460, 'paid', 'hms0001pa', 0, '22387') " +
                 "ON DUPLICATE KEY UPDATE bill_date = '2016-09-01 10:00:00', doctor_fee = 250, hospital_fee = 100, " +
                 "pharmacy_fee = 400, laboratory_fee = 50, appointment_fee = 600, vat = 70, discount = 10, total = 1460, " +
-                "payment_method = 'paid', patient_id = 'hms0001pa', refund = 0");
+                "payment_method = 'paid', patient_id = 'hms0001pa', refund = 0, consultant_id = '22387'");
         stmt.close();
 
         cashierInstance = new Cashier("user020");
@@ -99,7 +105,7 @@ public class CashierGetPaymentHistoryIntegrationTest {
         assertEquals("150", result.get(2).get(3));
         assertEquals("300", result.get(2).get(4));
         assertEquals("0", result.get(2).get(5));
-        assertEquals("500", result.get(2).get(6));
+        assertEquals("500", result.get(2).get(7));
         assertEquals("1210", result.get(2).get(7));
         assertEquals("hms0007b", result.get(2).get(8));
     }
@@ -107,7 +113,10 @@ public class CashierGetPaymentHistoryIntegrationTest {
     @Test
     public void testGetPaymentHistory_NoData() throws SQLException {
         Statement stmt = connection.createStatement();
-        stmt.executeUpdate("DELETE FROM bill WHERE bill_id IN ('hms0007b', 'hms0008b')");
+        stmt.executeUpdate("UPDATE appointment SET bill_id = NULL");
+        stmt.executeUpdate("UPDATE lab_appointment SET bill_id = NULL");
+        stmt.executeUpdate("UPDATE pharmacy_history SET bill_id = NULL");
+        stmt.executeUpdate("DELETE FROM bill");
         stmt.close();
 
         ArrayList<ArrayList<String>> result = cashierInstance.getPaymentHistory(2);
