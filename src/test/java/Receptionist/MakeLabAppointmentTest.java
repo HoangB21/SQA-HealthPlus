@@ -463,73 +463,63 @@ public class MakeLabAppointmentTest {
         billRs.next();
         assertEquals(0, billRs.getInt("count"), "No temporary bill should be created when billID is invalid");
     }
-
-    /*
+    
+        /*
      * RE_MLA_09
-     * Objective: Verify that makeLabAppointment correctly increments the
-     * tmp_bill_id
-     * when there is an existing tmp_bill with zeros in the numeric portion
-     * Input: Same as successful case
-     * Mock behavior: Return a tmp_bill_id with zeros (e.g., "hms0023tb")
-     * Expected output: Returns a valid lab_appointment_id
-     * Expected database state: New tmp_bill created with incremented ID (e.g.,
-     * "hms0024tb")
+     * Purpose: Verify that the tmp_bill ID generation block executes without throwing an exception when creating a new tmp_bill, using real database operations
+     * 
+     * Test Data Setup:
+     * - Patient ID: "hms0001pa"
+     * - Doctor ID: "22387"
+     * - Test ID: "test001"
+     * - Day: "2" (Tuesday, current week)
+     * - Time Slot: "09:00-12:00"
+     * - Database records:
+     *   - Existing lab_appointment: "lapp010"
+     *   - Lab test: "test001" with fee "1000"
+     *   - Lab appointment timetable for "test001" on day 2, time slot "09:00-12:00"
+     *   - Existing tmp_bill: "hms0005tb" for a different patient
+     *   - No tmp_bill for patient "hms0001pa"
+     * 
+     * Execution:
+     * - Inserts necessary records into lab_appointment, lab_test, lab_appointment_timetable, and tmp_bill tables
+     * - Calls makeLabAppointment with the test data
+     * - Queries the database to verify the new tmp_bill creation
+     * 
+     * Expected Results:
+     * 1. Returns new lab_appointment_id in format "lappXXX"
+     * 2. The tmp_bill ID generation block executes without throwing an exception
+     * 3. Creates new tmp_bill with tmp_bill_id "hms0006tb" and laboratory fee 1000
+     * 
+     * Tests Business Rules:
+     * - Correct generation of new tmp_bill_id based on max existing ID
+     * - Successful database operations within the tmp_bill ID generation block
      */
     @Test
-    public void testMakeLabAppointment_IncrementBillID() throws SQLException, ClassNotFoundException {
-        // Manually set the dbOperator field in Receptionist to use mock
-        receptionistInstance.dbOperator = dbOperator;
+    public void testMakeLabAppointment_TmpBillIdGenerationSuccess() throws SQLException {
+        // Set up test data
+        Statement stmt = connection.createStatement();
 
-        // Mock data for lab appointment ID query
-        ArrayList<ArrayList<String>> appointmentIdResult = new ArrayList<>();
-        ArrayList<String> appointmentHeaders = new ArrayList<>();
-        appointmentHeaders.add("lab_appointment_id");
-        ArrayList<String> appointmentData = new ArrayList<>();
-        appointmentData.add("lapp010");
-        appointmentIdResult.add(appointmentHeaders);
-        appointmentIdResult.add(appointmentData);
+        // Insert lab test data
+        stmt.executeUpdate("INSERT INTO lab_test (test_id, test_name, test_fee) " +
+                "VALUES ('test001', 'Blood Test', '1000')");
+        
+        // Insert prerequisite data for lab_appointment (to generate next lab_appointment_id)
+        stmt.executeUpdate(
+                "INSERT INTO lab_appointment (lab_appointment_id, test_id, patient_id, doctor_id, date, cancelled) " +
+                        "VALUES ('lapp010', 'test001', 'hms0002pa', '22387', '2024-03-19 08:00:00', false)");
 
-        // Mock data for max bill ID query - using ID with leading zeros
-        ArrayList<ArrayList<String>> maxBillResult = new ArrayList<>();
-        ArrayList<String> maxBillHeaders = new ArrayList<>();
-        maxBillHeaders.add("tmp_bill_id");
-        ArrayList<String> maxBillData = new ArrayList<>();
-        maxBillData.add("hms0023tb"); // Bill ID with leading zeros
-        maxBillResult.add(maxBillHeaders);
-        maxBillResult.add(maxBillData);
+        // Insert lab appointment timetable data
+        stmt.executeUpdate(
+                "INSERT INTO lab_appointment_timetable (app_test_id, app_day, time_slot, current_week_appointments) " +
+                        "VALUES ('test001', '2', '09:00-12:00', 0)");
 
-        // Mock data for lab test fee query
-        ArrayList<ArrayList<String>> testFeeResult = new ArrayList<>();
-        ArrayList<String> testFeeHeaders = new ArrayList<>();
-        testFeeHeaders.add("test_fee");
-        ArrayList<String> testFeeData = new ArrayList<>();
-        testFeeData.add("1000");
-        testFeeResult.add(testFeeHeaders);
-        testFeeResult.add(testFeeData);
+        // Insert an existing tmp_bill for a different patient to ensure max tmp_bill_id query returns a value
+        stmt.executeUpdate("INSERT INTO tmp_bill (tmp_bill_id, patient_id, laboratory_fee) " +
+                "VALUES ('hms0005tb', 'hms0002pa', '0')");
 
-        // Setup mock behavior for specific SQL queries
-        // 1. Mock for max lab_appointment_id query
-        when(dbOperator.customSelection(
-                "SELECT lab_appointment_id FROM lab_appointment WHERE lab_appointment_id = (SELECT MAX(lab_appointment_id) FROM lab_appointment);"))
-                .thenReturn(appointmentIdResult);
-
-        // 2. Mock for existing tmp_bill query to throw exception
-        when(dbOperator.customSelection(
-                "SELECT tmp_bill_id FROM tmp_bill WHERE patient_id = 'hms0001pa';"))
-                .thenThrow(new SQLException("No existing tmp_bill"));
-
-        // 3. Mock for max tmp_bill_id query
-        when(dbOperator.customSelection(
-                "SELECT tmp_bill_id FROM tmp_bill WHERE tmp_bill_id = (SELECT MAX(tmp_bill_id) FROM tmp_bill);"))
-                .thenReturn(maxBillResult);
-
-        // 4. Mock for lab test fee query
-        when(dbOperator.customSelection(
-                "SELECT test_fee FROM lab_test WHERE test_id = 'test001';"))
-                .thenReturn(testFeeResult);
-
-        // Mock all database insertions to return true
-        when(dbOperator.customInsertion(anyString())).thenReturn(true);
+        // Ensure no tmp_bill exists for the test patient to trigger the block
+        stmt.executeUpdate("DELETE FROM tmp_bill WHERE patient_id = 'hms0001pa'");
 
         // Call the method under test
         String result = receptionistInstance.makeLabAppointment("hms0001pa", "22387", "test001", "2", "09:00-12:00");
@@ -537,24 +527,29 @@ public class MakeLabAppointmentTest {
         // Verify the result is a valid lab_appointment_id
         assertTrue(result.matches("lapp\\d{3}"), "Result should be a valid lab_appointment_id");
 
-        // Verify the SQL for tmp_bill creation contains the correct incremented ID
-        verify(dbOperator).customInsertion(contains("'hms0024tb'")); // Verify the ID was incremented correctly
+        // Verify the new tmp_bill was created with the correct tmp_bill_id and laboratory fee
+        ResultSet billRs = stmt.executeQuery(
+                "SELECT tmp_bill_id, laboratory_fee FROM tmp_bill WHERE patient_id = 'hms0001pa'");
+        assertTrue(billRs.next(), "New temporary bill record should exist");
+        assertEquals("hms0006tb", billRs.getString("tmp_bill_id"),
+                "New tmp_bill_id should be generated as hms0006tb");
+        assertEquals("1000", billRs.getString("laboratory_fee"), "Laboratory fee should be updated to '1000'");
 
-        // Additional verifications
-        Statement stmt = connection.createStatement();
-
-        // Verify lab appointment was created
+        // Verify the lab_appointment was created
         ResultSet appointmentRs = stmt.executeQuery(
                 "SELECT * FROM lab_appointment WHERE lab_appointment_id = '" + result + "'");
-        assertTrue(appointmentRs.next(), "Lab appointment should be created");
-        assertEquals("test001", appointmentRs.getString("test_id"));
+        assertTrue(appointmentRs.next(), "Lab appointment record should exist");
         assertEquals("hms0001pa", appointmentRs.getString("patient_id"));
+        assertEquals("22387", appointmentRs.getString("doctor_id"));
+        assertEquals("test001", appointmentRs.getString("test_id"));
+        assertFalse(appointmentRs.getBoolean("cancelled"));
 
         // Verify lab_appointment_timetable was updated
         ResultSet availabilityRs = stmt.executeQuery(
                 "SELECT current_week_appointments FROM lab_appointment_timetable " +
                         "WHERE app_test_id = 'test001' AND app_day = '2' AND time_slot = '09:00-12:00'");
-        assertTrue(availabilityRs.next(), "Lab appointment timetable should be updated");
-        assertEquals(1, availabilityRs.getInt("current_week_appointments"));
+        assertTrue(availabilityRs.next(), "Lab appointment timetable record should exist");
+        assertEquals(1, availabilityRs.getInt("current_week_appointments"),
+                "Current week appointments should be incremented");
     }
 }

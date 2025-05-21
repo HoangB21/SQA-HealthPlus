@@ -113,6 +113,9 @@ public class DoctorAppointmentAvailableTimeTest {
         int currentDayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
         int testDay = (currentDayOfWeek % 7) + 1; // Next day
 
+        // Clean up existing records for this doctor
+        stmt.executeUpdate("DELETE FROM doctor_availability WHERE slmc_reg_no = '19993'");
+
         // Insert test data
         stmt.executeUpdate(
                 "INSERT INTO doctor_availability (slmc_reg_no, day, time_slot, current_week_appointments) " +
@@ -350,5 +353,70 @@ public class DoctorAppointmentAvailableTimeTest {
         assertEquals("day", headerRow.get(0));
         assertEquals("session_start", headerRow.get(1));
         assertEquals("app_time", headerRow.get(2));
+    }
+
+    /*
+     * RE_DAT_06
+     * Purpose: Verify next day calculation when available day is less than or equal to current day
+     * 
+     * Test Data Setup:
+     * - Doctor ID: "19993"
+     * - Availability record:
+     *   - Day: Current day or previous day
+     *   - Time slot: "09:00-12:00"
+     *   - Current appointments: 1
+     * 
+     * Expected Results:
+     * 1. Correct calculation of next appointment day (should be next week)
+     * 2. Proper handling of week wraparound
+     * 3. Accurate appointment time calculation
+     * 
+     * Tests Specific Logic:
+     * - if (availableDay <= dayOfWeek) condition
+     * - Next week calculation algorithm
+     * - Week boundary handling
+     */
+    @Test
+    public void testDoctorAppointmentAvailableTime_AvailableDayLessThanOrEqualCurrent() throws SQLException {
+        // Set up test data
+        String doctorID = "19993";
+        Statement stmt = connection.createStatement();
+
+        // Clean up existing records for this doctor
+        stmt.executeUpdate("DELETE FROM doctor_availability WHERE slmc_reg_no = '19993'");
+
+        // Get current day of week and set test day to current or previous day
+        Calendar cal = Calendar.getInstance();
+        int currentDayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
+        int testDay = currentDayOfWeek; // Same day as current
+
+        // Insert test data
+        stmt.executeUpdate(
+                "INSERT INTO doctor_availability (slmc_reg_no, day, time_slot, current_week_appointments) " +
+                        "VALUES ('19993', '" + testDay + "', '09:00-12:00', 1)");
+
+        // Calculate expected date (should be next week)
+        Calendar expectedCal = Calendar.getInstance();
+        expectedCal.add(Calendar.DATE, 7); // Add 7 days to get to next week
+        String expectedDay = new SimpleDateFormat("EEEE MMM dd").format(expectedCal.getTime());
+
+        // Call the method
+        ArrayList<ArrayList<String>> result = receptionistInstance.doctorAppointmentAvailableTime(doctorID);
+
+        // Verify results
+        assertNotNull(result, "Result should not be null");
+
+        // Verify header row
+        ArrayList<String> headerRow = result.get(0);
+        assertEquals("day", headerRow.get(0));
+        assertEquals("session_start", headerRow.get(1));
+        assertEquals("app_time", headerRow.get(2));
+
+        // Verify data row
+        ArrayList<String> dataRow = result.get(1);
+        assertEquals(expectedDay, dataRow.get(0), "Day should be next week's same day");
+        assertEquals("09:00", dataRow.get(1), "Session start time should match input");
+        assertEquals("09:05", dataRow.get(2),
+                "Appointment time should be start time + 5 minutes (1 appointment * 5 minutes)");
     }
 }

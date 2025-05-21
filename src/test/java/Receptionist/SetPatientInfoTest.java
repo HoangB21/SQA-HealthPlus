@@ -242,7 +242,7 @@ public class SetPatientInfoTest {
     @Test
     public void testSetPatientInfo_MalformedInput() throws SQLException {
         // Input with missing required fields
-        String patientInfo = "gender f,address 145|town1|Street1,mobile 0775123465";
+        String patientInfo = "gender f,address 145|town1|Street1,mobile 0775123abc";
 
         // Call the method under test
         String result = receptionistInstance.setPatientInfo(patientInfo);

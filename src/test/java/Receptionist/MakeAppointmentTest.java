@@ -13,10 +13,12 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -113,7 +115,7 @@ public class MakeAppointmentTest {
 
         // Insert dummy data to simulate existing records
         stmt.executeUpdate("INSERT INTO appointment (appointment_id, patient_id, slmc_reg_no, date, cancelled) " +
-                "VALUES ('app010', 'hms0001pa', '22387', '2024-03-19 08:00:00', false)");
+                "VALUES ('app036', 'hms0001pa', '22387', '2024-03-19 08:00:00', false)");
 
         stmt.executeUpdate("INSERT INTO doctor_availability (slmc_reg_no, day, time_slot, current_week_appointments) " +
                 "VALUES ('22387', '2', '09:00-12:00', 0)");
@@ -556,5 +558,79 @@ public class MakeAppointmentTest {
         ResultSet billRs = stmt.executeQuery("SELECT COUNT(*) as count FROM tmp_bill WHERE patient_id = 'hms0001pa'");
         billRs.next();
         assertEquals(0, billRs.getInt("count"), "No temporary bill should be created when billID is invalid");
+    }
+    
+        /*
+     * RE_MA_09
+     * Purpose: Verify that the tmp_bill update block executes without throwing an exception when a tmp_bill exists, using real database operations
+     * 
+     * Test Data Setup:
+     * - Patient ID: "hms0001pa"
+     * - Doctor ID: "22387"
+     * - Day: "2" (Tuesday, current week)
+     * - Time Slot: "09:00-12:00"
+     * - Database records:
+     *   - Existing appointment: "app010"
+     *   - Doctor availability for "22387" on day 2, time slot "09:00-12:00"
+     *   - Existing tmp_bill for patient "hms0001pa" with tmp_bill_id "hms0005tb"
+     * 
+     * Execution:
+     * - Inserts necessary records into appointment, doctor_availability, and tmp_bill tables
+     * - Calls makeAppointment with the test data
+     * - Queries the database to verify the tmp_bill update
+     * 
+     * Expected Results:
+     * 1. Returns new appointment_id in format "appXXX"
+     * 2. The tmp_bill update block executes without throwing an exception
+     * 3. Updates tmp_bill with the correct appointment fee (500)
+     * 
+     * Tests Business Rules:
+     * - Correct handling of existing tmp_bill updates using real database operations
+     * - Successful database operations within the tmp_bill update block
+     */
+    @Test
+    public void testMakeAppointment_TmpBillUpdateSuccess() throws SQLException {
+        // Set up test data
+        Statement stmt = connection.createStatement();
+
+        // Insert prerequisite data for appointment (to generate next appointment_id)
+        stmt.executeUpdate("INSERT INTO appointment (appointment_id, patient_id, slmc_reg_no, date, cancelled) " +
+                "VALUES ('app036', 'hms0001pa', '22387', '2024-03-19 08:00:00', false)");
+
+        // Insert doctor availability data
+        stmt.executeUpdate("INSERT INTO doctor_availability (slmc_reg_no, day, time_slot, current_week_appointments) " +
+                "VALUES ('22387', '2', '09:00-12:00', 0)");
+
+        // Insert tmp_bill data for the patient to ensure the try block is executed
+        stmt.executeUpdate("INSERT INTO tmp_bill (tmp_bill_id, patient_id, appointment_fee) " +
+                "VALUES ('hms0005tb', 'hms0001pa', '0')");
+
+        // Call the method under test
+        String result = receptionistInstance.makeAppointment("hms0001pa", "22387", "2", "09:00-12:00");
+
+        // Verify the result is a valid appointment_id
+        assertTrue(result.matches("app\\d{3}"), "Result should be a valid appointment_id");
+
+        // Verify the tmp_bill was updated with the correct appointment fee
+        ResultSet billRs = stmt.executeQuery(
+                "SELECT appointment_fee FROM tmp_bill WHERE tmp_bill_id = 'hms0005tb'");
+        assertTrue(billRs.next(), "Temporary bill record should exist");
+        assertEquals("500", billRs.getString("appointment_fee"), "Appointment fee should be updated to '500'");
+
+        // Verify the appointment was created
+        ResultSet appointmentRs = stmt.executeQuery(
+                "SELECT * FROM appointment WHERE appointment_id = '" + result + "'");
+        assertTrue(appointmentRs.next(), "Appointment record should exist");
+        assertEquals("hms0001pa", appointmentRs.getString("patient_id"));
+        assertEquals("22387", appointmentRs.getString("slmc_reg_no"));
+        assertFalse(appointmentRs.getBoolean("cancelled"));
+
+        // Verify doctor_availability was updated
+        ResultSet availabilityRs = stmt.executeQuery(
+                "SELECT current_week_appointments FROM doctor_availability " +
+                        "WHERE slmc_reg_no = '22387' AND day = '2' AND time_slot = '09:00-12:00'");
+        assertTrue(availabilityRs.next(), "Doctor availability record should exist");
+        assertEquals(1, availabilityRs.getInt("current_week_appointments"),
+                "Current week appointments should be incremented");
     }
 }
